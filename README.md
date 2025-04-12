@@ -126,6 +126,14 @@ The Ansible playbook will:
 3. Log the quarantined files and any other relevant information for further analysis.
 
 ---
+## Python script
+
+The python script inside the scrips folder can be interesting to customize
+
+```bash
+python3 scripts/analyse_results.py
+```
+
 
 ## Customization
 
