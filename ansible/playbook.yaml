@@ -1,0 +1,62 @@
+---
+- name: Incident Response with YARA
+  hosts: test_hosts
+
+  tasks:
+    - name: Install YARA
+      apt:
+        name: yara
+        state: present
+        update_cache: yes
+
+    - name: Create logs and quarantine folders
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - /tmp/ir_logs
+        - /tmp/quarantine
+        - /opt/yara
+
+    - name: Copy YARA rule to target
+      copy:
+        src: ../rules/suspicious.yar
+        dest: /opt/yara/suspicious.yar
+
+    - name: Copy YARA scan script to target
+      copy:
+        src: yara_scan.sh
+        dest: /tmp/yara_scan.sh
+        mode: '0755'
+
+    - name: Execute YARA scan
+      shell: /tmp/yara_scan.sh /opt/yara/suspicious.yar
+      register: yara_output
+
+    - name: Print YARA output
+      debug:
+        var: yara_output.stdout
+
+    - name: Save YARA output locally
+      local_action: copy content="{{ yara_output.stdout }}" dest="../logs/yara_detect.log"
+
+
+    - name: Quarantine matching files based on YARA detection
+      shell: |
+        mkdir -p /tmp/quarantine
+        echo "{{ yara_output.stdout }}" | while read -r line; do
+          FILE=$(echo "$line" | awk '{print $2}')
+          if [ -f "$FILE" ]; then
+            mv "$FILE" /tmp/quarantine/
+          fi
+        done
+      when: yara_output.stdout != ""
+
+
+
+    - name: Set restrictive permissions on quarantined files
+      file:
+        path: /tmp/quarantine
+        recurse: yes
+        mode: '0600'
